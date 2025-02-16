@@ -143,8 +143,3 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
     if not hasattr(bot, "on_interaction_callbacks"):
         bot.on_interaction_callbacks = []
     bot.on_interaction_callbacks.append(on_interaction)
-
-    @tree.command(name="test")
-    async def test(interaction: discord.Interaction):
-        print(config)
-        await interaction.response.send_message("Test", ephemeral=True)
