@@ -103,7 +103,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             name = p.get("name", "Unknown")
             ping = p.get("ping", "?")
             # Customize as needed
-            player_strings.append(f"**[{pid}]** \\{name} (ping: {ping})")
+            player_strings.append(f"**[{pid}]** ``{name}`` (ping: {ping})")
 
         # We'll create a primary embed with server info
         main_embed = discord.Embed(
