@@ -21,3 +21,4 @@ player_list:
 rcon:
   server_ip: "ip/domain:30120"   # Replace with your actual FiveM server IP:port (default port is 30120)
   rcon_password: "password"   # Replace with your actual RCON password
+  allowed_role_id: 333333333333333333  # Role ID that can use the RCON commands
