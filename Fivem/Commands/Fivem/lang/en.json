@@ -11,6 +11,10 @@
     "not_administrator": "You need to be an administrator to use this command",
     "command_description": "Shows the data to put inside the config file, and sends send placeholder message",
     "command_embed_title": "Edit the config file please, can be done with the web interface or by editing the file directly (Fivem.yml)",
-    "command_embed_description": "channel_id: `{{ch_id}}`\nmessage_id: `{{msg_id}}`"
+    "command_embed_description": "channel_id: `{{ch_id}}`\nmessage_id: `{{msg_id}}`",
+  },
+  "rcon": {
+    "command_description": "Sends a command to the FiveM server",
+    "double_quotes_err": "Invalid command format. Please use double quotes to wrap the command."
   }
 }
