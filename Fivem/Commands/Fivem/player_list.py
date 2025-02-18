@@ -142,6 +142,8 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
         if current_chunk.strip():
             main_embed.add_field(name=f"Players {field_counter}", value=current_chunk, inline=False)
 
+        splited_messages = []
+
         # Check if the embed size exceeds Discord's limit
         if len(main_embed) > 5900:
             split_embeds = []
@@ -171,13 +173,13 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             # Send the first embed as an edit
             await main_message.edit(embed=split_embeds[0], content=None)
             for split_embed in split_embeds[1:]: # Send the remaining embeds as new messages
-                await main_message.channel.send(embed=split_embed)
+                sp_m = await main_message.channel.send(embed=split_embed)
+                splited_messages.append(sp_m.id)
         else:
             await main_message.edit(embed=main_embed, content=None) # Safe to send without splitting
-
         # Delete old messages (if any) that were sent by the bot
         async for message in main_message.channel.history(limit=1000):
-            if message.id != main_message.id and message.author == bot.user:
+            if message.id != main_message.id and message.author == bot.user and message.id not in splited_messages:
                 await message.delete()
                 await asyncio.sleep(0.5)  # Prevent rate-limiting
 
