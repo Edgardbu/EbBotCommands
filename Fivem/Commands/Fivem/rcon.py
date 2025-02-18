@@ -9,9 +9,16 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
     @tree.command(name="rcon", description=lang["command_description"])
     async def player_list_command(interaction: discord.Interaction, command: str):
-        fivem_config = config
-        rcon_password = fivem_config.get("rcon_password", "")
-        rcon_ip = fivem_config.get("server_ip", "127.0.0.1")
+
+        allowed_role = int(config.get("allowed_role_id", 0))
+        if allowed_role:
+            allowed_role = interaction.guild.get_role(allowed_role)
+            if allowed_role not in interaction.user.roles:
+                return await interaction.response.send_message(lang["no_permission"], ephemeral=True)
+        else:
+            return await interaction.response.send_message(lang["no_permission"], ephemeral=True)
+        rcon_password = config.get("rcon_password", "")
+        rcon_ip = config.get("server_ip", "127.0.0.1")
         try:
             rcon_ip, rcon_port = rcon_ip.split(":")
         except ValueError:
