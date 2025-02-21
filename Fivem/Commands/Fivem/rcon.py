@@ -1,6 +1,46 @@
-from rcon.source import rcon
+import socket
+import struct
 import discord
 
+class RCONClient:
+    def __init__(self, host, port, password):
+        self.host = host
+        self.port = port
+        self.password = password
+        self.socket = None
+
+    def connect(self):
+        # UDP (weirdly enough, FiveM RCON uses UDP)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.settimeout(3)  #NOTE: more than 3 seconds might resolve in "interaction failed" on the slash command
+
+    def send_command(self, command):
+        """
+        Sends a command to the FiveM server.
+        Fivem packets are in the format: \xFF\xFF\xFF\xFFrcon <password> <command>
+        :param command:
+        :return:
+        """
+        try:
+            packet = f"\xFF\xFF\xFF\xFFrcon {self.password} {command}".encode("latin1")
+            self.socket.sendto(packet, (self.host, self.port))
+            try: #try to receive the response
+                response, _ = self.socket.recvfrom(4096)
+                response = response.decode("latin1", errors="ignore").strip()
+
+                if response.startswith("\xFF\xFF\xFF\xFF"): # Remove unexpected leading bytes (just in case)
+                    response = response[4:]
+                return response
+            except socket.timeout:
+                return "Timeout (No response from server)"
+        except Exception as e:
+            return f"Error: {e}"
+
+    def close(self):
+        """Closes the UDP socket."""
+        if self.socket:
+            self.socket.close()
+            self.socket = None
 
 def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict):
     """
@@ -24,22 +64,12 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
         except ValueError:
             rcon_port = 30120
         rcon_port = int(rcon_port)
-        commands_args = command.split(" ")
-        new_args = []
-        temp_index = -1
-        for i in range(len(commands_args)):
-            if commands_args[i].startswith('"'):
-                temp_index = i
-                temp_str = commands_args[i]
-                break
-            if commands_args[i].endswith('"') and temp_index != -1:
-                new_args.append(" ".join(commands_args[temp_index:i+1]))
-                temp_index = -1
-            if temp_index == -1:
-                new_args.append(commands_args[i])
-        if temp_index != -1:
-            return await interaction.response.send_message(lang["double_quotes_err"], ephemeral=True)
-        response = "```\n" + await rcon(new_args[0], *new_args[1:], host=rcon_ip, port=rcon_port, passwd=rcon_password)
+        rcon = RCONClient(rcon_ip, rcon_port, rcon_password)
+        try:
+            rcon.connect()
+            response = rcon.send_command(command)
+        except Exception as e:
+            response = "Error: " + str(e)
         if len(response) > 2000:
             response = response[:1990] + "\n..." + "\n```"
         await interaction.response.send_message(response, ephemeral=True)
