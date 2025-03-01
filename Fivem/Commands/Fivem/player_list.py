@@ -1,14 +1,11 @@
 import asyncio
-import json
+import datetime
+
 import colorama
 import discord
-import aiohttp
 import utils
-import math
-import io
 from discord.ext import tasks
 import Commands.Fivem.helper as helper
-from requests.utils import resolve_proxies
 
 
 def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict):
@@ -18,7 +15,6 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
     fivem_config = config
     server_ip = fivem_config.get("server_ip", "127.0.0.1:30120")
     embed_color = fivem_config.get("embed", {}).get("color", "#FF5733")
-    server_name = fivem_config.get("server_name", "FiveM Server")
     # Endpoint for player listing (common for FiveM is "players.json")
     players_endpoint = fivem_config.get("players_endpoint", "players.json")
 
@@ -60,6 +56,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             )
             return await main_message.edit(embed=embed_fail, content=None)
         server_name = info.get("vars", {}).get("sv_projectName", server_name)
+        max_players = info.get("vars", {}).get("sv_maxClients", 32)
         if server_name.startswith("^"): # Remove color codes
             server_name = server_name[2:]
 
@@ -76,6 +73,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         # Build the embed(s)
         color = discord.Color.from_str(embed_color) if embed_color else discord.Color.blue()
+        fivem_data = [server_name, server_ip, players, max_players]
         if not status_ok:
             # Could not fetch the data
             embed_fail = discord.Embed(
@@ -107,14 +105,21 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         # We'll create a primary embed with server info
         main_embed = discord.Embed(
-            title=server_name,
-            description=f"**Server IP:** `{server_ip}`\n**Online Players:** {len(players)}",
-            color=color
+            title=helper.fivem_replace_variables(fivem_config["embed"]["title"], fivem_data, bot.user, main_message.guild),
+            description=helper.fivem_replace_variables(fivem_config["embed"]["description"], fivem_data, bot.user, main_message.guild),
+            color=color,
+            timestamp=datetime.datetime.now(datetime.timezone.utc) if fivem_config["embed"]["footer_timestamp"] else None
         )
+        main_embed.set_image(url=fivem_config["embed"]["image"])
+        main_embed.set_thumbnail(url=fivem_config["embed"]["thumbnail"])
+        if fivem_config["embed"]["author"]["name"] is not None:
+            main_embed.set_author(name=helper.fivem_replace_variables(fivem_config["embed"]["author"]["name"], fivem_data, bot.user, main_message.guild),
+                                  icon_url=fivem_config["embed"]["author"]["icon_url"],
+                                  url=fivem_config["embed"]["author"]["url"])
 
         # If no players, we can just say "No players online."
         if not player_strings:
-            main_embed.add_field(name="Players", value="No players online.", inline=False)
+            main_embed.add_field(name=lang["players"], value=lang["no_players_online"], inline=False)
             await main_message.edit(embed=main_embed, content=None)
             return
 
@@ -132,7 +137,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             line = ps + "\n"
             if len(current_chunk) + len(line) > chunk_size:
                 # add field
-                main_embed.add_field(name=f"Players {field_counter}", value=current_chunk, inline=False)
+                main_embed.add_field(name=f"{lang['players']} {field_counter}", value=current_chunk, inline=False)
                 field_counter += 1
                 current_chunk = line
             else:
@@ -140,7 +145,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         # Add the last chunk if not empty
         if current_chunk.strip():
-            main_embed.add_field(name=f"Players {field_counter}", value=current_chunk, inline=False)
+            main_embed.add_field(name=f"{lang['players']} {field_counter}", value=current_chunk, inline=False)
 
         splited_messages = []
 
@@ -148,9 +153,17 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
         if len(main_embed) > 5900:
             split_embeds = []
             current_embed = discord.Embed(
-                title=server_name,
-                color=color
+                title=helper.fivem_replace_variables(fivem_config["embed"]["title"], fivem_data, bot.user, main_message.guild),
+                description=helper.fivem_replace_variables(fivem_config["embed"]["description"], fivem_data, bot.user, main_message.guild),
+                color=color,
+                timestamp=datetime.datetime.now(datetime.timezone.utc) if fivem_config["embed"]["footer_timestamp"] else None
             )
+            current_embed.set_image(url=fivem_config["embed"]["image"])
+            current_embed.set_thumbnail(url=fivem_config["embed"]["thumbnail"])
+            if fivem_config["embed"]["author"]["name"] is not None:
+                current_embed.set_author(name=helper.fivem_replace_variables(fivem_config["embed"]["author"]["name"], fivem_data, bot.user, main_message.guild),
+                                      icon_url=fivem_config["embed"]["author"]["icon_url"],
+                                      url=fivem_config["embed"]["author"]["url"])
             total_chars = 0
             # Split fields among multiple embeds
             for field in main_embed.fields:
@@ -160,8 +173,16 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
                 if total_chars + field_chars > 5900:
                     split_embeds.append(current_embed)
                     current_embed = discord.Embed(
-                        title=server_name,
-                        color=color)
+                        title=helper.fivem_replace_variables(fivem_config["embed"]["title"], fivem_data, bot.user, main_message.guild),
+                        description=helper.fivem_replace_variables(fivem_config["embed"]["description"], fivem_data, bot.user, main_message.guild),
+                        color=color,
+                        timestamp=datetime.datetime.now(datetime.timezone.utc) if fivem_config["embed"]["footer_timestamp"] else None)
+                    current_embed.set_image(url=fivem_config["embed"]["image"])
+                    current_embed.set_thumbnail(url=fivem_config["embed"]["thumbnail"])
+                    if fivem_config["embed"]["author"]["name"] is not None:
+                        current_embed.set_author(name=helper.fivem_replace_variables(fivem_config["embed"]["author"]["name"], fivem_data, bot.user, main_message.guild),
+                                                 icon_url=fivem_config["embed"]["author"]["icon_url"],
+                                                 url=fivem_config["embed"]["author"]["url"])
                     total_chars = 0  # Reset character count for new embed
                 current_embed.add_field(name=field.name, value=field.value, inline=False)
                 total_chars += field_chars
@@ -169,12 +190,27 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             # Store the last embed if it contains any fields
             if len(current_embed.fields) > 0:
                 split_embeds.append(current_embed)
-
             # Send the first embed as an edit
             await main_message.edit(embed=split_embeds[0], content=None)
-            for split_embed in split_embeds[1:]: # Send the remaining embeds as new messages
-                sp_m = await main_message.channel.send(embed=split_embed)
-                splited_messages.append(sp_m.id)
+            await asyncio.sleep(0.5)  # Prevent rate-limiting
+            old_split_embeds = []
+            async for message in main_message.channel.history(limit=1000):
+                if message.id != main_message.id and message.author == bot.user:
+                    old_split_embeds.append(message)
+            old_split_embeds = old_split_embeds[::-1] # Reverse the list to have the oldest messages first
+            if len(split_embeds[1:]) >= len(old_split_embeds):
+                for i in range(len(old_split_embeds)):
+                    sp_m = await old_split_embeds.pop(0).edit(embed=split_embeds.pop(1))  # index 1 because we already sent the first embed
+                    splited_messages.append(sp_m.id)
+                    await asyncio.sleep(0.5)  # Prevent rate-limiting
+                for split_embed in split_embeds[1:]: # Send the remaining embeds as new messages
+                    sp_m = await main_message.channel.send(embed=split_embed)
+                    splited_messages.append(sp_m.id)
+                    await asyncio.sleep(0.5)  # Prevent rate-limiting
+            else:
+                for split_embed in split_embeds[1:]: # Send the remaining embeds as new messages
+                    sp_m = await main_message.channel.send(embed=split_embed, content=None)
+                    splited_messages.append(sp_m.id)
         else:
             await main_message.edit(embed=main_embed, content=None) # Safe to send without splitting
         # Delete old messages (if any) that were sent by the bot
@@ -210,7 +246,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             except discord.NotFound:
                 print(colorama.Fore.RED + "[-] Fivem: player list message not found | use the /player_list command to create it")
                 return
-            handle_player_list_loop_command.start(server_ip, embed_color, server_name, fivem_config)
+            handle_player_list_loop_command.start(server_ip, embed_color, "FiveM Server", fivem_config)
             print(colorama.Fore.GREEN + "[+] Fivem: player list message updated and registered loop")
 
     if not hasattr(bot, "on_ready_callbacks"):
