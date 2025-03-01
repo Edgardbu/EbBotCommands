@@ -13,7 +13,16 @@ player_list:
   players_endpoint: "players.json"   # https://ip:port/players.json
   info_endpoint: "info.json"   # https://ip:port/info.json
   embed:
+    title: "{{fivem_server_name}}"
+    description: "**Server IP:** `{{server_ip}}`\n**Online Players:** {{players_length}}/{{max_players}}"
     color: "#FF5733"
+    thumbnail: "https://cdn2.steamgriddb.com/logo/4e688af00e7dcc3aa74cf59301228626.png"
+    image: null
+    footer_timestamp: true
+    author:
+      name: null
+      url: null
+      icon_url: null
   channel_id: 111111111111111111  # Channel ID where the bot player list located
   message_id: 222222222222222222  # Message ID of the player list message
   update_interval: 60  # Update interval in seconds (default is 60 seconds)
