@@ -23,6 +23,7 @@ player_list:
       name: null
       url: null
       icon_url: null
+  format: "**[{{fivem_player_id}}]** `{{fivem_player_name}}` (Ping: {{fivem_player_ping}})"
   channel_id: 111111111111111111  # Channel ID where the bot player list located
   message_id: 222222222222222222  # Message ID of the player list message
   update_interval: 60  # Update interval in seconds (default is 60 seconds)
