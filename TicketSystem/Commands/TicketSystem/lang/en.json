@@ -28,7 +28,6 @@
     "member_add_denied": "The request to add {member} has been denied.",
     "add_member_request_timeout": "Your request to add a member has timed out.",
     "ticket_transcript_log": "Ticket **{channel}** has been closed by {closed_by}. Transcript attached.",
-
     "setup_welcome_detailed": "Welcome to the ticket system setup! Here you can configure how your ticket system works.\nYou can choose between multiple categories or a single category for all tickets. You will be prompted to select support roles, channels for the ticket panel and logs, and other options.\nLet's begin by deciding if you want multiple categories or not.",
     "enable_categories_button": "Decide on Categories",
     "enable_categories_explanation_detailed": "Enabling categories means you can have multiple buttons in your ticket panel, each for a different category (e.g., 'Support', 'Sales'). Tickets opened from that category button will go into the corresponding category channel.\nIf you disable categories, all tickets go into one category channel.\nWhich setup fits your needs?",
@@ -52,9 +51,21 @@
     "require_staff_approval_question": "Do you want to require staff approval before adding a user to a ticket?",
     "setup_done": "Setup complete! Please update your configuration file with the following settings:\n```yaml\n{instructions}\n```",
     "skip_categories_button": "Use Only One Category",
-
     "ticket_panel_placeholder": "This is a placeholder message for your ticket panel. Once you've added this message's ID to the config as 'ticket_panel_message_id', the bot will edit this message to the actual ticket panel on restart.",
     "update_message_id_in_config": "Please update your configuration file with 'ticket_panel_message_id: {message_id}' and then restart the bot.",
-    "panel_channel_not_found": "The ticket panel channel could not be found. Please ensure the channel exists and rerun the setup."
+    "panel_channel_not_found": "The ticket panel channel could not be found. Please ensure the channel exists and rerun the setup.",
+    "ticket_already_open": "You already have an open ticket. Please close it before opening a new one.",
+    "claim_ticket_button": "Claim Ticket",
+    "no_permission_claim": "You do not have permission to claim this ticket.",
+    "ticket_already_claimed": "This ticket has already been claimed.",
+    "ticket_claim_success": "Ticket successfully claimed by {claimed_by}.",
+    "member_remove_description": "The member to remove",
+    "remove_command_description": "Remove a user from the ticket",
+    "no_permission_remove" : "You do not have permission to remove a user from this ticket.",
+    "user_removed": "{member} has been removed from the ticket.",
+    "rename_command_description": "Rename the ticket",
+    "rename_description" : "The new name for the ticket",
+    "no_permission_rename" : "You do not have permission to rename this ticket.",
+    "ticket_renamed": "The ticket has been renamed to {new_name}."
   }
 }

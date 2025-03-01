@@ -2,13 +2,13 @@ import discord
 import typing
 import io
 import colorama
+import sqlite3
 import utils
 
-def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict):
-    # We assume config is already a dictionary that includes 'TicketSystem' key.
-    # If needed, uncomment the line below to directly refer to TicketSystem config:
-    # config = config["TicketSystem"]
-
+def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict, db: sqlite3.Cursor):
+    """
+    Sets up the ticket system commands and views.
+    """
     ticket_commands = discord.app_commands.Group(name="ticket", description=lang["command_description"])
 
     @ticket_commands.command(name="setup", description=lang["setup_command_description"])
@@ -34,6 +34,44 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             await interaction.channel.set_permissions(member, read_messages=True, send_messages=True)
             await interaction.response.send_message(lang["user_added"].format(member=member.mention), ephemeral=True)
 
+    @ticket_commands.command(name="remove", description=lang["remove_command_description"])
+    @discord.app_commands.describe(member=lang["member_remove_description"])
+    async def ticket_remove(interaction: discord.Interaction, member: discord.Member):
+
+        flag = False
+        for role_id in config.get("support_roles", []):
+            role = interaction.guild.get_role(role_id)
+            if role in member.roles:
+                flag = True
+                break
+        if not flag:
+            await interaction.response.send_message(lang["no_permission_remove"], ephemeral=True)
+
+        if not is_ticket_channel(interaction.channel):
+            await interaction.response.send_message(lang["not_in_ticket_channel"], ephemeral=True)
+            return
+
+        await interaction.channel.set_permissions(member, overwrite=None)
+        await interaction.response.send_message(lang["user_removed"].format(member=member.mention), ephemeral=True)
+
+    @ticket_commands.command(name="rename", description=lang["rename_command_description"])
+    @discord.app_commands.describe(name=lang["rename_description"])
+    async def ticket_rename(interaction: discord.Interaction, name: str):
+        if not is_ticket_channel(interaction.channel):
+            return await interaction.response.send_message(lang["not_in_ticket_channel"], ephemeral=True)
+
+        flag = False
+        for role_id in config.get("support_roles", []):
+            role = interaction.guild.get_role(role_id)
+            if role in interaction.user.roles:
+                flag = True
+                break
+
+        if not flag:
+            return await interaction.response.send_message(lang["no_permission_rename"], ephemeral=True)
+        await interaction.channel.edit(name=f"ticket-{name}")
+        await interaction.response.send_message(lang["ticket_renamed"].format(new_name=name), ephemeral=True)
+
     @ticket_commands.command(name="close", description=lang["close_command_description"])
     async def ticket_close(interaction: discord.Interaction):
         if not is_ticket_channel(interaction.channel):
@@ -50,6 +88,8 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
     tree.add_command(ticket_commands)
 
     async def on_ready():
+        db.execute("CREATE TABLE IF NOT EXISTS ticketsTicketSystem (channel_id INTEGER PRIMARY KEY, owner_id INTEGER not null, claimed_by integer default null, claim_time timestamp default null, close_time timestamp default null, closed_by integer default null, closed boolean default false)")
+        db.commit()
         channel_id = config.get("ticket_panel_channel_id")
         if channel_id is None:
             print(colorama.Fore.YELLOW + "[!] TicketSystem: Ticket panel channel ID not set.")
@@ -113,6 +153,10 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             return callback
 
     async def create_ticket(interaction: discord.Interaction, category_name: typing.Optional[str], conf, lang):
+
+        if db.execute("SELECT * FROM ticketsTicketSystem WHERE owner_id = ? AND closed = false", (interaction.user.id,)).fetchone():
+            return await interaction.response.send_message(lang["ticket_already_open"], ephemeral=True)
+
         guild = interaction.guild
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -145,8 +189,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         embed = discord.Embed(title=lang["ticket_created_title"], description=lang["ticket_created_description"].format(user=interaction.user.mention), color=discord.Color.green())
         channel_id = ticket_channel.id
-        close_button_id = f"ticket_close_button_{channel_id}"
-        view = TicketChannelView(conf, lang, close_button_id)
+        view = TicketChannelView(conf, lang)
         await ticket_channel.send(embed=embed, view=view)
 
         # Register the ticket channel view
@@ -154,24 +197,35 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         await interaction.response.send_message(lang["ticket_opened"].format(channel=ticket_channel.mention), ephemeral=True)
 
+        db.execute("INSERT INTO ticketsTicketSystem (channel_id, owner_id) VALUES (?, ?)", (channel_id, interaction.user.id))
+        db.commit()
+
     class TicketChannelView(discord.ui.View):
-        def __init__(self, conf, lang, close_button_id: str):
+        def __init__(self, conf, lang):
             super().__init__(timeout=None)
             self.config = conf
             self.lang = lang
 
-            button = discord.ui.Button(
+            self.add_item(discord.ui.Button(
                 label=lang["close_ticket_button"],
                 style=discord.ButtonStyle.danger,
-                custom_id=close_button_id
-            )
-            self.add_item(button)
+                custom_id="ticket_close_button"
+            ))
+            self.add_item(discord.ui.Button(
+                label=lang["claim_ticket_button"],
+                style=discord.ButtonStyle.primary,
+                custom_id="ticket_claim_button"
+            ))
 
     def is_ticket_channel(channel: discord.TextChannel) -> bool:
         return channel.name.startswith("ticket-")
 
     async def can_close_ticket(user: discord.Member, channel: discord.TextChannel, conf) -> bool:
-        if channel.name.startswith(f"ticket-{user.name.lower()}"):
+        res = db.execute("SELECT * FROM ticketsTicketSystem WHERE channel_id = ?", (channel.id,))
+        ticket = res.fetchone()
+        if not ticket:
+            return False
+        if ticket[1] == user.id:
             return True
         support_role_ids = conf.get("support_roles", [])
         for role_id in support_role_ids:
@@ -208,6 +262,8 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             transcript_file = discord.File(fp=io.StringIO(transcript), filename=f"transcript-{channel.name}.txt")
             await log_channel.send(content=lang["ticket_transcript_log"].format(channel=channel.name, closed_by=closed_by.mention), file=transcript_file)
 
+        db.execute("UPDATE ticketsTicketSystem SET closed = true, close_time = datetime('now'), closed_by = ? WHERE channel_id = ?", (closed_by.id, channel.id))
+        db.commit()
         await channel.delete()
 
     async def request_staff_approval_for_add(interaction: discord.Interaction, member: discord.Member, conf, lang):
@@ -588,7 +644,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         custom_id = component["custom_id"]
         # Handle close button logic here
-        if custom_id.startswith("ticket_close_button_"):
+        if custom_id == "ticket_close_button":
             channel = interaction.channel
             if not isinstance(channel, discord.TextChannel):
                 return
@@ -600,6 +656,39 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
             await interaction.response.send_message(lang["ticket_closed"], ephemeral=True)
             await close_ticket(channel, interaction.user, config, lang)
+
+        if custom_id == "ticket_claim_button":
+            if not is_support_staff(interaction.user, config): # Check if the user is support staff
+                await interaction.response.send_message(lang["no_permission_claim"], ephemeral=True)
+                return
+
+            # Even though the button is disabled I will check if the ticket is already claimed
+            row = db.execute("SELECT claimed_by FROM ticketsTicketSystem WHERE channel_id = ?", (interaction.channel.id,)).fetchone()
+            if row and row[0] is not None:
+                await interaction.response.send_message(lang["ticket_already_claimed"], ephemeral=True)
+                return
+
+            db.execute(
+                "UPDATE ticketsTicketSystem SET claimed_by = ?, claim_time = datetime('now') WHERE channel_id = ?", # Update the DB with claim information
+                (interaction.user.id, interaction.channel.id)
+            )
+            db.commit()
+
+            # Update channel permissions:
+            current_overwrites = interaction.channel.overwrites or {}
+            new_overwrites = current_overwrites.copy()
+
+            for role_id in config.get("support_roles", []):
+                role = interaction.guild.get_role(role_id)
+                if role:
+                    new_overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=False) # Update each support role: allow read_messages but disable send_messages.
+            new_overwrites[interaction.user] = discord.PermissionOverwrite(read_messages=True, send_messages=True) # Ensure that the claiming staff member can send messages
+
+            await interaction.channel.edit(overwrites=new_overwrites)
+            await interaction.response.send_message(
+                lang["ticket_claim_success"].format(claimed_by=interaction.user.mention),
+                ephemeral=True
+            )
 
     if not hasattr(bot, "on_interaction_callbacks"):
         bot.on_interaction_callbacks = []
