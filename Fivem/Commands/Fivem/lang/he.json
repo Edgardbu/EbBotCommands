@@ -11,7 +11,8 @@
     "not_administrator": "עליך להיות בעל גישות administrator כדי להשתמש בפקודה זו",
     "command_description": "מכין את הנתונים שיש לשים בתוך קובץ הקונפיג, ושולח הודעה זמנית",
     "command_embed_title": "ערוך את קובץ הקונפיג בבקשה, ניתן לעשות זאת דרך ממשק האינטרנט או על ידי עריכת הקובץ ישירות (Fivem.yml)",
-    "command_embed_description": "channel_id: `{{ch_id}}`\nmessage_id: `{{msg_id}}`"
+    "command_embed_description": "channel_id: `{{ch_id}}`\nmessage_id: `{{msg_id}}`",
+    "players": "שחקנים"
   },
   "rcon": {
     "command_description": "שולח פקודה לשרת FiveM",
