@@ -1,9 +1,27 @@
+import json
+from collections import Counter
 import discord
 import typing
 import io
 import colorama
 import sqlite3
 import utils
+import datetime
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from bidi.algorithm import get_display
+from collections import Counter, defaultdict
+
+def is_rtl(text):
+    rtl_ranges = [
+        (0x0590, 0x05FF),  # Hebrew
+        (0x0600, 0x06FF),  # Arabic
+        (0x0750, 0x077F),  # Arabic Supplement
+        (0x08A0, 0x08FF),  # Arabic Extended-A
+        (0xFB50, 0xFDFF),  # Arabic Presentation Forms-A
+        (0xFE70, 0xFEFF),  # Arabic Presentation Forms-B
+    ]
+    return any(any(start <= ord(char) <= end for start, end in rtl_ranges) for char in text)
 
 def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict, db: sqlite3.Cursor):
     """
@@ -86,6 +104,136 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
         await interaction.response.send_message(lang["ticket_closed"], ephemeral=True)
 
     tree.add_command(ticket_commands)
+
+    claims_commands = discord.app_commands.Group(name="claims", description=lang["claim_command_description"])
+
+    @claims_commands.command(name="show", description=lang["claims_command_description"])
+    async def claims_show(interaction: discord.Interaction, user: discord.Member = None):
+        if not is_support_staff(interaction.user, config):
+            await interaction.response.send_message(lang["no_permission_command"], ephemeral=True)
+            return
+
+        if user is None:
+            user = interaction.user
+
+        claims = db.execute("SELECT claim_time FROM ticketsTicketSystem WHERE claimed_by = ? AND claim_time IS NOT NULL", (user.id,)).fetchall()
+
+        if not claims:
+            return await interaction.response.send_message(lang["no_claims"].format(user_mention=user.mention), ephemeral=True)
+        claims_dt = [datetime.datetime.fromisoformat(dt[0]) for dt in claims]
+        pre_sorted_dates = Counter(dt.strftime("%d/%m/%Y") for dt in claims_dt)
+        min_date, max_date = min(claims_dt), max(claims_dt)
+
+        sorted_dates = {
+            (min_date + datetime.timedelta(days=i)).strftime("%d/%m/%Y"): pre_sorted_dates.get((min_date + datetime.timedelta(days=i)).strftime("%d/%m/%Y"), 0)
+            for i in range((max_date - min_date).days + 1)
+        }
+
+        x_positions = range(len(sorted_dates))
+        y_values = list(sorted_dates.values())
+        x_positions_scatter = [i for i in range(len(y_values)) if y_values[i] != 0 or (i > 0 and y_values[i-1] != 0) or (i < len(y_values) - 1 and y_values[i+1] != 0)] # Generate scatter points only when the previous or next day had claims
+        y_positions_scatter = [y_values[i] for i in x_positions_scatter]
+
+        plt.plot(x_positions, list(sorted_dates.values()), zorder=1)
+        plt.scatter(x_positions_scatter, y_positions_scatter, color="red", zorder=2)
+
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))  # Keep YYYY-MM-DD format
+        plt.xticks(ticks=x_positions, labels=list(sorted_dates.keys()), rotation=45)
+        plt.xlabel(lang["graph_date"] if not is_rtl(lang["graph_date"]) else get_display(lang["graph_date"]))
+        plt.ylabel(lang["graph_claims_num"] if not is_rtl(lang["graph_claims_num"]) else get_display(lang["graph_claims_num"]))
+        plt.title(lang["graph_title"].format(user_name=user.display_name) if not is_rtl(lang["graph_title"]) else get_display(lang["graph_title"]).format(user_name=user.display_name))
+
+        plt.tight_layout()
+
+        # stream the plot to a bytes object
+        image_stream = io.BytesIO()
+        plt.savefig(image_stream, format="png")
+        plt.close()
+        image_stream.seek(0)
+
+        embed = discord.Embed(title=lang["embed_claims_title"], color=discord.Color.blue(), description=lang["embed_claims_description"].format(user_mention=user.mention))
+        file = discord.File(image_stream, filename="claims_graph.png")
+        embed.set_image(url="attachment://claims_graph.png")
+
+        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
+
+    @claims_commands.command(name="top10", description=lang["claims_top10_command_description"])
+    async def claims_top10(interaction: discord.Interaction):
+        if not is_support_staff(interaction.user, config):
+            await interaction.response.send_message(lang["no_permission_command"], ephemeral=True)
+            return
+
+        # Retrieve claims grouped by user
+        claims = db.execute("SELECT claimed_by, claim_time FROM ticketsTicketSystem WHERE claim_time IS NOT NULL").fetchall()
+
+        if not claims:
+            return await interaction.response.send_message(lang["no_claims_found"], ephemeral=True)
+
+        # Count claims per user
+        claim_counts = Counter(user_id for user_id, _ in claims)
+        top_users = [user_id for user_id, _ in claim_counts.most_common(10)]  # Get top 10 users
+
+        # Retrieve usernames
+        user_names = {}
+        for user_id in top_users:
+            user = await interaction.client.fetch_user(user_id)  # Get user object from ID
+            user_names[user_id] = user.display_name if user else f"Unknown ({user_id})"
+
+        # Prepare data for visualization
+        user_claims = defaultdict(list)  # Store claim times per user
+        for user_id, claim_time in claims:
+            if user_id in top_users:
+                user_claims[user_id].append(datetime.datetime.fromisoformat(claim_time))
+
+        plt.figure(figsize=(8, 5))
+
+        # Create a full date range to fill gaps
+        all_claims = [dt for times in user_claims.values() for dt in times]  # Flatten list
+        if not all_claims:
+            return await interaction.response.send_message(lang["no_claims_found"], ephemeral=True)
+
+        min_date, max_date = min(all_claims).date(), max(all_claims).date()
+        full_dates = [min_date + datetime.timedelta(days=i) for i in range((max_date - min_date).days + 1)]
+
+        # Plot each user's claim history as a line
+        for user_id, claim_times in user_claims.items():
+            # Convert claim times to daily counts
+            claim_counts_per_day = Counter(dt.date() for dt in claim_times)
+            y_values = [claim_counts_per_day.get(date, 0) for date in full_dates]  # Fill missing days with 0
+
+            plt.plot(full_dates, y_values, marker='o', label=user_names[user_id])  # Plot line with markers
+
+        # Format x-axis as dates
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.xticks(rotation=45)
+
+        # Labels and Title
+        plt.xlabel(lang["graph_top10_x"] if not is_rtl(lang["graph_top10_x"]) else get_display(lang["graph_top10_x"]))
+        plt.ylabel(lang["graph_top10_y"] if not is_rtl(lang["graph_top10_y"]) else get_display(lang["graph_top10_y"]))
+        plt.title(lang["graph_top10_title"] if not is_rtl(lang["graph_top10_title"]) else get_display(lang["graph_top10_title"]))
+
+        plt.legend()  # Show legend with usernames
+        plt.grid(True)  # Add grid for readability
+        plt.tight_layout()
+
+        # Save the graph to a bytes object
+        image_stream = io.BytesIO()
+        plt.savefig(image_stream, format="png")
+        plt.close()
+        image_stream.seek(0)
+
+        # Send embed with graph
+        embed = discord.Embed(
+            title=lang["embed_top10_title"],
+            color=discord.Color.blue(),
+            description=lang["embed_top10_description"]
+        )
+        file = discord.File(image_stream, filename="top10_claims.png")
+        embed.set_image(url="attachment://top10_claims.png")
+
+        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
+
+    tree.add_command(claims_commands)
 
     async def on_ready():
         db.execute("CREATE TABLE IF NOT EXISTS ticketsTicketSystem (channel_id INTEGER PRIMARY KEY, owner_id INTEGER not null, claimed_by integer default null, claim_time timestamp default null, close_time timestamp default null, closed_by integer default null, closed boolean default false)")
@@ -403,13 +551,21 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
                 placeholder_message = await panel_channel.send(self.lang["ticket_panel_placeholder"])
                 instructions += f"\n  ticket_panel_message_id: {placeholder_message.id}"
 
+                with open("Configs/TicketSystem.yml", "w") as f:
+                    f.write(instructions)
+
                 await interaction.response.edit_message(
-                    content=self.lang["setup_done"].format(instructions=instructions) + f"\n\n{additional_info}\n\n" + self.lang["update_message_id_in_config"].format(message_id=placeholder_message.id),
+                    content=self.lang["setup_done"],
                     view=None
                 )
+                if bot and hasattr(bot, "load_specific_config"):
+                    bot.load_specific_config("TicketSystem", "ticket_system")
+                else:
+                    print("somthing went wrong! Make sure you have the latest version of EbBot.")
+                await on_ready()
             else:
                 await interaction.response.edit_message(
-                    content=self.lang["setup_done"].format(instructions=instructions) + f"\n\n{additional_info}\n\n" + self.lang["panel_channel_not_found"],
+                    content=self.lang["panel_channel_not_found"],
                     view=None
                 )
 
