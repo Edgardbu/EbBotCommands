@@ -1,0 +1,10 @@
+{
+  "auto embed": {
+    "no perms": "You do not have the required permissions to use this command.",
+    "auto_commands_description": "This command allows you to enable or disable auto-embeds for the current channel.",
+    "auto_commands_description_add": "Add this or any other channel to the list of auto-embeds.",
+    "auto_commands_description_remove": "Remove this channel from auto-embeds.",
+    "auto_embed_added": "Auto-embeds have been enabled for this channel.",
+    "auto_embed_removed": "Auto-embeds have been disabled for this channel.",
+  }
+}
