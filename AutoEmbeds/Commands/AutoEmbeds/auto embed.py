@@ -62,9 +62,9 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, lang: dict
         embed = discord.Embed(title=auto_embed[1], timestamp=message.created_at)
         if auto_embed[2] is not None: # Before
             embed.description = auto_embed[2] + "\n" + f"```{message_content}```"
-        embed.description += message.content
+        embed.description = message.content
         if auto_embed[3] is not None: # After
-            embed.description += f"```{message_content}```" + "\n" + auto_embed[3]
+            embed.description = f"```{message_content}```" + "\n" + auto_embed[3]
         if auto_embed[2] is not None and auto_embed[3] is not None:
             embed.description = auto_embed[2] + "\n" + f"```{message_content}```" + "\n" + auto_embed[3]
         if auto_embed[2] is None and auto_embed[3] is None:
