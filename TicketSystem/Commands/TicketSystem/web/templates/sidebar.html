@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex">
+    <div class="px-3 py-4" style="min-height: 100vh; width: 220px; border-right: 1px solid #211E23;">
+        <h5 class="text-light mb-4">🎫 Ticket Panel</h5>
+        <ul class="nav flex-column">
+            <li class="nav-item mb-2">
+                <a class="nav-link {% if request.path == '/TicketSystem' %}active text-white{% else %}text-muted{% endif %}" href="/TicketSystem">
+                    <i class="fas fa-list me-2"></i>Transcript Logs
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.path == '/TicketSystem/settings' %}active text-white{% else %}text-muted{% endif %}" href="/TicketSystem/settings">
+                    <i class="fas fa-cogs me-2"></i>Settings
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="flex-grow-1 p-4">
+        <!-- Your main content goes here -->
+        {% block inner_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

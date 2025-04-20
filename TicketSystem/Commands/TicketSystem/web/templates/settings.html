@@ -1,0 +1,321 @@
+{% extends 'TicketSystem/sidebar.html' %}
+{% block title %}Ticket System Settings - Eb bot{% endblock %}
+
+{% block extra_head %}
+<style>
+    .fade-out {
+        opacity: 0;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        transform: scale(0.95);
+    }
+
+    label, h2 {
+        color: #858796;
+        font-weight: 500;
+    }
+
+    input[type="text"]:disabled {
+        background: #211E23;
+    }
+
+    .card {
+        background-color: #222228;
+        border-radius: 10px;
+    }
+
+    .form-control {
+        background-color: #2a2a32;
+        border: 1px solid #444;
+        color: #e2e2e2;
+    }
+
+    .form-control::placeholder {
+        color: #888;
+    }
+
+    .form-check-input {
+        background-color: #444;
+        border: 1px solid #666;
+    }
+
+    .form-check-input:checked {
+        background-color: #4e73df;
+        border-color: #4e73df;
+    }
+
+    .form-check-label {
+        margin-left: 0.5rem;
+    }
+
+    .btn-outline-primary,
+    .btn-outline-secondary {
+        border-radius: 6px;
+    }
+
+    .btn-success {
+        background-color: #00d88f;
+        border: none;
+        font-weight: 500;
+    }
+
+    .btn-success:hover {
+        background-color: #00c080;
+    }
+
+    .form-switch {
+        display: flex;
+        align-items: center;
+        --size: 56px;
+    }
+
+    .form-switch .form-check-input {
+        margin-left: 0;
+        margin-right: 0.5rem;
+    }
+
+    .form-switch .form-check-label {
+        margin-bottom: 0;
+        font-size: 1rem;
+    }
+
+    .form-switch input[type="checkbox"] {
+        -webkit-appearance: none;
+        width: var(--size);
+        height: calc(var(--size) / 2);
+        background-color: #fff;
+        border: 3px solid #222;
+        border-radius: 30px 100px 100px 100px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        outline: none;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.5s;
+    }
+
+    .form-switch input[type="checkbox"]::before {
+        content: "";
+        position: absolute;
+        width: calc(var(--size) / 2);
+        height: calc(var(--size) / 2);
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%) scale(0.7);
+        border: 3px solid #222;
+        border-radius: 30px 100px 100px 100px;
+        background-color: #495099;
+        box-sizing: border-box;
+        transition: all 0.5s;
+    }
+
+    .form-switch input[type="checkbox"]:checked {
+        background-color: #495099;
+        border-radius: 100px 100px 30px 100px;
+    }
+
+    .form-switch input[type="checkbox"]:checked::before {
+        left: 50%;
+        background-color: #fff;
+        border-radius: 100px 100px 30px 100px;
+    }
+
+    input[type="text"] {
+        border-radius: 6px;
+    }
+
+    .left{
+        text-align: left !important;
+    }
+
+    .center-cat{
+        margin-left: 7em;
+    }
+
+    .alert-hide {
+        opacity: 0;
+        transition: opacity 0.5s ease, transform 0.5s ease;
+        transform: translateY(-10px);
+    }
+</style>
+{% endblock %}
+
+
+{% block inner_content %}
+<div class="container mt-5">
+    <div class="card shadow-lg border-0">
+        <div class="card-body" id="main-card">
+            <h4 class="card-title mb-4"><i class="fas fa-cogs me-2"></i>Ticket System Settings</h4>
+            <turbo-frame id="settings-form">
+                <form method="post" id="ticketSettingsForm">
+
+                    <div class="form-check form-switch mb-4" style="padding-left: 0em;">
+                        <input class="form-check-input" type="checkbox" id="enableCategories" name="enable_categories"
+                               {% if config.enable_categories %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="enableCategories" style="margin-top: 0.5%;">Enable Categories</label>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" for="ticketCategory" >Ticket Category (default fallback)</label>
+                        <input type="text" class="form-control" id="ticketCategory" name="ticket_category_id"
+                               value="{{ config.ticket_category_id or '' }}"
+                               placeholder=" {% if config.enable_categories %}Disable categories to use this setting{% endif %} {% if not config.enable_categories %}Place category id here{% endif %}"
+                               {% if config.enable_categories %}disabled{% endif %}>
+                    </div>
+
+                    <div class="mb-4 center-cat">
+                        <label class="form-label fw-semibold">Categories</label>
+                        <div id="categoriesContainer">
+                            {% if config.categories %}
+                            {% for name, cid in config.categories.items() %}
+                            <script>
+                                document.addEventListener("DOMContentLoaded", () => {
+                                    addCategoryRow("{{ name }}", "{{ cid }}");
+                                });
+                            </script>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addCategoryRow()" {% if not config.enable_categories %}disabled style="color: red;border-color: red;"{% endif %}>+ Add Category</button>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Support Roles</label>
+                        <div id="rolesContainer">
+                            {% for role in config.support_roles %}
+                            <script>
+                                document.addEventListener("DOMContentLoaded", () => {
+                                    addRoleInput("{{ role }}");
+                                });
+                            </script>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addRoleInput()">+ Add Role</button>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Panel Channel ID</label>
+                            <input type="text" class="form-control" name="ticket_panel_channel_id" value="{{ config.ticket_panel_channel_id or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Log Channel ID</label>
+                            <input type="text" class="form-control" name="ticket_log_channel_id" value="{{ config.ticket_log_channel_id or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Panel Message ID</label>
+                            <input type="text" class="form-control" name="ticket_panel_message_id" value="{{ config.ticket_panel_message_id or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="requireApproval" name="require_staff_approval_for_add_user"
+                               {% if config.require_staff_approval_for_add_user %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="requireApproval">Require Staff Approval to Add Users</label>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg shadow-sm">📎 Save Settings</button>
+                    </div>
+                </form>
+            </turbo-frame>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function addCategoryRow(name = '', id = '') {
+        const container = document.getElementById('categoriesContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-center category-row';
+        row.innerHTML = `
+        <div class="col-md-5">
+            <input type="text" class="form-control" name="categories_name[]" placeholder="Category Name" value="${name}">
+        </div>
+        <div class="col-md-5">
+            <input type="text" class="form-control" name="categories_id[]" placeholder="Category ID" value="${id}">
+        </div>
+        <div class="col-md-2 text-end left">
+            <button type="button" class="btn btn-sm btn-danger remove-category">&times;</button>
+        </div>
+    `;
+        container.appendChild(row);
+        toggleCategoryUI(document.getElementById("enableCategories").checked);
+    }
+
+    function addRoleInput(value = '') {
+        const container = document.getElementById('rolesContainer');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'input-group mb-2 role-row';
+        wrapper.innerHTML = `
+        <input type="text" class="form-control" name="support_roles[]" placeholder="Role ID" value="${value}">
+        <button type="button" class="btn btn-danger remove-role">&times;</button>
+    `;
+        container.appendChild(wrapper);
+    }
+
+    document.addEventListener("click", function (e) {
+        if (e.target.classList.contains("remove-category") || e.target.classList.contains("remove-role")) {
+            const row = e.target.closest(".category-row, .role-row");
+            row.classList.add("fade-out");
+            setTimeout(() => row.remove(), 300);
+        }
+    });
+
+    document.getElementById("enableCategories").addEventListener("change", function () {
+        toggleCategoryUI(this.checked);
+        fetch(window.location.pathname, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Turbo-Frame": "settings-form"
+            },
+            body: `toggle_only=true&enable_categories=${this.checked ? 'on' : ''}`
+        });
+    });
+
+    function toggleCategoryUI(enabled) {
+        const ticketCategoryInput = document.getElementById("ticketCategory");
+        ticketCategoryInput.disabled = enabled;
+        ticketCategoryInput.placeholder = enabled ? "Disable categories to use this setting" : "Place category id here";
+
+        const nameInputs = document.querySelectorAll("input[name='categories_name[]']");
+        const idInputs = document.querySelectorAll("input[name='categories_id[]']");
+        const addCategoryButton = document.querySelector("button[onclick='addCategoryRow()']");
+
+        nameInputs.forEach(input => {
+            input.disabled = !enabled;
+            input.placeholder = enabled ? "Category Name" : "Enable categories to use this setting";
+        });
+        idInputs.forEach(input => {
+            input.disabled = !enabled;
+            input.placeholder = enabled ? "Category ID" : "Enable categories to use this setting";
+        });
+
+        addCategoryButton.disabled = !enabled;
+        if (!enabled) {
+            addCategoryButton.textContent = "- Enable categories to use this setting";
+            addCategoryButton.style.color = "red";
+            addCategoryButton.style.borderColor = "red";
+        } else {
+            addCategoryButton.textContent = "+ Add Category";
+            addCategoryButton.style.color = "";
+            addCategoryButton.style.borderColor = "";
+        }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+        toggleCategoryUI(document.getElementById("enableCategories").checked);
+    });
+
+    function hideWarning() {
+        const warningAlert = document.getElementById('info-warning');
+        if (warningAlert) {
+            warningAlert.classList.add('alert-hide');
+            setTimeout(() => {
+                warningAlert.remove();
+            }, 500);
+        }
+    }
+</script>
+{% endblock %}

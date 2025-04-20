@@ -1,0 +1,96 @@
+{% extends 'TicketSystem/sidebar.html' %}
+{% block title %}Ticket Logs - Eb bot{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-color: #2f3136;
+        color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .log-container {
+        max-width: 960px;
+        margin: 40px auto;
+        background-color: #36393f;
+        border-radius: 10px;
+        padding: 20px;
+    }
+
+    .log-header {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+        font-weight: bold;
+        color: #ffffff;
+    }
+
+    .ticket-entry {
+        background-color: #2a2d31;
+        padding: 15px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.2s ease;
+    }
+
+    .ticket-entry:hover {
+        background-color: #3a3d41;
+    }
+
+    .ticket-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ticket-id {
+        font-weight: bold;
+        color: #00b0f4;
+    }
+
+    .ticket-status {
+        font-size: 0.9em;
+        color: #b9bbbe;
+        margin-top: 5px;
+    }
+
+    .ticket-link {
+        color: #00d88f;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .ticket-link:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block inner_content %}
+<div class="log-container">
+    <div class="log-header">Ticket Logs</div>
+
+    {% if tickets %}
+    {% for ticket in tickets %}
+    <div class="ticket-entry">
+        <div class="ticket-info">
+            <div class="ticket-id">Ticket #{{ ticket.channel_id }} | {{ ticket.owner_id }}</div>
+            <div class="ticket-status">
+                {% if ticket.closed %}
+                Closed on {{ ticket.close_time or "Unknown" }}
+                {% else %}
+                <span style="color: orange;">In Progress</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if ticket.closed %}
+        <a class="ticket-link" href="transcript/{{ ticket.channel_id }}">View Transcript →</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No tickets found.</p>
+    {% endif %}
+</div>
+{% endblock %}

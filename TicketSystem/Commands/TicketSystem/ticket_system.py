@@ -58,7 +58,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         flag = False
         for role_id in config.get("support_roles", []):
-            role = interaction.guild.get_role(role_id)
+            role = interaction.guild.get_role(int(role_id))
             if role in member.roles:
                 flag = True
                 break
@@ -80,7 +80,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         flag = False
         for role_id in config.get("support_roles", []):
-            role = interaction.guild.get_role(role_id)
+            role = interaction.guild.get_role(int(role_id))
             if role in interaction.user.roles:
                 flag = True
                 break
@@ -238,7 +238,9 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
     async def on_ready():
         db.execute("CREATE TABLE IF NOT EXISTS ticketsTicketSystem (channel_id INTEGER PRIMARY KEY, owner_id INTEGER not null, claimed_by integer default null, claim_time timestamp default null, close_time timestamp default null, closed_by integer default null, closed boolean default false)")
         db.commit()
-        channel_id = config.get("ticket_panel_channel_id")
+        db.execute("CREATE TABLE IF NOT EXISTS ticketMessages (id INTEGER PRIMARY KEY AUTOINCREMENT,message_id INTEGER,channel_id INTEGER,author_id INTEGER,author_name TEXT,author_image TEXT,content TEXT,embed_title TEXT,embed_color TEXT,embed_description TEXT,embed_fields TEXT,embed_image_url TEXT,embed_thumbnail_url TEXT,embed_footer TEXT,embed_icon_url TEXT,embed_icon_text TEXT,timestamp TEXT)")
+        db.commit()
+        channel_id = int(config.get("ticket_panel_channel_id"))
         if channel_id is None:
             print(colorama.Fore.YELLOW + "[!] TicketSystem: Ticket panel channel ID not set.")
             return
@@ -247,11 +249,11 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             print(colorama.Fore.YELLOW + f"[!] TicketSystem: Cannot find channel with ID {channel_id}")
             return
 
-        if config.get("ticket_panel_message_id") is None:
+        if config.get("ticket_panel_message_id") is None or config.get("ticket_panel_message_id") == '':
             print(colorama.Fore.YELLOW + "[!] TicketSystem: 'ticket_panel_message_id' not set. After completing setup and adding the placeholder message_id, restart the bot.")
         else:
             try:
-                message_id = config["ticket_panel_message_id"]
+                message_id = int(config["ticket_panel_message_id"])
                 message = await channel.fetch_message(message_id)
                 # Edit this message to the actual open ticket message
                 embed = get_ticket_panel_embed(config, lang)
@@ -313,19 +315,19 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
         support_role_ids = conf.get("support_roles", [])
         for role_id in support_role_ids:
-            role = guild.get_role(role_id)
+            role = guild.get_role(int(role_id))
             if role:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         if category_name and conf.get("enable_categories", False):
-            category_id = conf.get("categories", {}).get(category_name)
+            category_id = int(conf.get("categories", {}).get(category_name))
             if category_id:
                 category = guild.get_channel(category_id)
             else:
                 await interaction.response.send_message(lang["category_not_found"], ephemeral=True)
                 return
         else:
-            category_id = conf.get("ticket_category_id")
+            category_id = int(conf.get("ticket_category_id"))
             category = guild.get_channel(category_id)
 
         if category is None:
@@ -377,38 +379,50 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             return True
         support_role_ids = conf.get("support_roles", [])
         for role_id in support_role_ids:
-            role = user.guild.get_role(role_id)
+            role = user.guild.get_role(int(role_id))
             if role in user.roles:
                 return True
         return False
 
     async def close_ticket(channel: discord.TextChannel, closed_by: discord.Member, conf, lang):
         messages = [msg async for msg in channel.history(limit=None, oldest_first=True)]
-        transcript = ""
         for message in messages:
             timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            if message.embeds:
-                index = 1
-                for embed in message.embeds:
-                    content = f"EMBED {index}: {embed.title} \n ------> {'------>'.join(s + '\n' for s in embed.description.splitlines())}"
-                    content += f"Fields: ------------> {'------------>'.join(f.name + ': ' + f.value + '\n' for f in embed.fields)}"
-                    if embed.image:
-                        content += f"Image: {embed.image.url}"
-                    if embed.thumbnail:
-                        content += f"Thumbnail: {embed.thumbnail.url}"
-                    if embed.footer:
-                        content += f"Footer: {embed.footer.text}"
-                    index += 1
-            else:
-                content = message.content
-            transcript += f"[{timestamp}] {message.author.name}: {content}\n"
-        transcript = transcript.encode('utf-8').decode('utf-8')
+            author_id = message.author.id
+            author_name = message.author.name
+            content = message.content
+            embeds = message.embeds
 
-        log_channel_id = conf.get("ticket_log_channel_id")
-        log_channel = channel.guild.get_channel(log_channel_id)
-        if log_channel:
-            transcript_file = discord.File(fp=io.StringIO(transcript), filename=f"transcript-{channel.name}.txt")
-            await log_channel.send(content=lang["ticket_transcript_log"].format(channel=channel.name, closed_by=closed_by.mention), file=transcript_file)
+            if not embeds:
+                db.execute(
+                    """
+                    INSERT INTO ticketMessages (channel_id, message_id, author_id, author_name, author_image, content, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (channel.id, message.id, author_id, author_name, message.author.avatar.url, content, timestamp)
+                )
+            else:
+                for i, embed in enumerate(embeds):
+                    db.execute("INSERT INTO ticketMessages (channel_id, message_id, author_id, author_name, author_image, content, timestamp, embed_title, embed_color, embed_description, embed_footer, embed_image_url, embed_thumbnail_url, embed_icon_url, embed_icon_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+                        channel.id,
+                        message.id,
+                        author_id,
+                        author_name,
+                        message.author.avatar.url,
+                        content,
+                        timestamp,
+                        embed.title if embed.title else None,
+                        f'#{embed.color.value:06x}' if embed.color else None,
+                        embed.description if embed.description else None,
+                        embed.footer.text if embed.footer else None,
+                        embed.image.url if embed.image else None,
+                        embed.thumbnail.url if embed.thumbnail else None,
+                        embed.author.icon_url if embed.author and embed.author.icon_url else None,
+                        embed.author.name if embed.author else None,
+
+                    ))
+
 
         db.execute("UPDATE ticketsTicketSystem SET closed = true, close_time = datetime('now'), closed_by = ? WHERE channel_id = ?", (closed_by.id, channel.id))
         db.commit()
@@ -416,7 +430,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
 
     async def request_staff_approval_for_add(interaction: discord.Interaction, member: discord.Member, conf, lang):
         support_role_ids = conf.get("support_roles", [])
-        support_roles = [interaction.guild.get_role(role_id) for role_id in support_role_ids if interaction.guild.get_role(role_id)]
+        support_roles = [interaction.guild.get_role(int(role_id)) for role_id in support_role_ids if interaction.guild.get_role(role_id)]
         if not support_roles:
             await interaction.response.send_message(lang["no_support_roles_configured"], ephemeral=True)
             return
@@ -456,7 +470,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
     def is_support_staff(member: discord.Member, conf) -> bool:
         support_role_ids = conf.get("support_roles", [])
         for role_id in support_role_ids:
-            role = member.guild.get_role(role_id)
+            role = member.guild.get_role(int(role_id))
             if role in member.roles:
                 return True
         return False
@@ -835,7 +849,7 @@ def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: di
             new_overwrites = current_overwrites.copy()
 
             for role_id in config.get("support_roles", []):
-                role = interaction.guild.get_role(role_id)
+                role = interaction.guild.get_role(int(role_id))
                 if role:
                     new_overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=False) # Update each support role: allow read_messages but disable send_messages.
             new_overwrites[interaction.user] = discord.PermissionOverwrite(read_messages=True, send_messages=True) # Ensure that the claiming staff member can send messages

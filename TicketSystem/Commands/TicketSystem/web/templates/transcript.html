@@ -1,0 +1,254 @@
+{% extends 'TicketSystem/sidebar.html' %}
+{% block title %}Ticket Transcript{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-color: #2f3136;
+        color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .chat-box {
+        max-width: 900px;
+        max-height: 80vh;
+        margin: auto;
+        background-color: #36393f;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 20px;
+        overflow-y: auto;
+    }
+
+    .message {
+        display: flex;
+        margin-bottom: 20px;
+    }
+
+    .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 10px;
+        background-color: #7289da;
+    }
+
+    .message-body {
+        flex: 1;
+    }
+
+    .username {
+        font-weight: bold;
+        color: #ffffff;
+    }
+
+    .timestamp {
+        color: #b9bbbe;
+        font-size: 0.8em;
+        margin-left: 10px;
+    }
+
+    .message-content {
+        color: #dcddde;
+        margin-top: 3px;
+        white-space: pre-wrap;
+    }
+
+    .embed {
+        background-color: #2f3136;
+        border-left: 4px solid #4f545c;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 4px;
+    }
+
+    .embed-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+
+    .embed-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        border-radius: 4px;
+    }
+
+    .embed-title {
+        font-weight: bold;
+        color: #00b0f4;
+    }
+
+    .embed-description {
+        color: #b9bbbe;
+        margin-top: 4px;
+    }
+
+    .embed-field {
+        margin-top: 10px;
+    }
+
+    .embed-field-title {
+        font-weight: bold;
+        color: #ffffff;
+    }
+
+    .embed-field-value {
+        color: #b9bbbe;
+    }
+
+    .embed-footer {
+        font-size: 0.8em;
+        color: #72767d;
+        margin-top: 10px;
+        border-top: 1px solid #444;
+        padding-top: 5px;
+    }
+
+    .embed-thumbnail {
+        float: right;
+        max-height: 80px;
+        border-radius: 4px;
+        margin-left: 10px;
+    }
+
+    .embed-image {
+        display: block;
+        max-height: 250px;
+        margin-top: 10px;
+        border-radius: 6px;
+    }
+
+    .date-separator {
+        text-align: center;
+        color: #b9bbbe;
+        font-weight: bold;
+        margin: 30px 0 10px 0;
+    }
+
+    pre {
+        background-color: #2e2e2e;
+        padding: 10px;
+        border-radius: 6px;
+        overflow-x: auto;
+        color: #e2e2e2;
+    }
+
+    code {
+        background-color: #444;
+        padding: 2px 5px;
+        border-radius: 4px;
+        color: #f8f8f2;
+    }
+
+    strong {
+        font-weight: bold;
+    }
+
+    em {
+        font-style: italic;
+    }
+
+    u {
+        text-decoration: underline;
+    }
+
+    del {
+        text-decoration: line-through;
+    }
+</style>
+{% endblock %}
+
+{% block inner_content %}
+<div class="chat-box">
+    {% set ns = namespace(last_date=None) %}
+    {% for row in rows %}
+    {% set current_date = row.timestamp.split(' ')[0] %}
+    {% if current_date != ns.last_date %}
+    <div class="date-separator">{{ current_date }}</div>
+    {% set ns.last_date = current_date %}
+    {% endif %}
+
+    <div class="message">
+        <img class="avatar" src="{{ row.author_image or 'https://placehold.co/40x40' }}" alt="avatar">
+        <div class="message-body">
+            <div>
+                <span class="username">{{ row.author_name }}</span>
+                <span class="timestamp">{{ row.timestamp.split('.')[0] }}</span>
+            </div>
+
+            {% set is_only_image_embed = (
+            row.embed_image_url and
+            not row.embed_title and
+            not row.embed_description and
+            not row.embed_thumbnail_url and
+            not row.embed_fields and
+            not row.embed_footer and
+            not row.embed_icon_url and
+            not row.embed_icon_text and
+            row.content and row.content.strip() == row.embed_image_url.strip()
+            ) %}
+
+            {% if is_only_image_embed %}
+            <img class="embed-image" src="{{ row.embed_image_url }}" alt="embed-image">
+            {% else %}
+            {% if row.content %}
+            {% if row.content.startswith('http') %}
+            {% if row.embed_thumbnail_url and row.embed_thumbnail_url.startswith(row.content) %}
+            <img class="message-content" src="{{ row.embed_thumbnail_url }}" alt="thumbnail">
+            {% else %}
+            <a href="{{ row.content }}" target="_blank" class="message-content">{{ row.content }}</a>
+            {% endif %}
+            {% else %}
+            <div class="message-content" style="white-space: pre-wrap;">{{ row.content | discord_format }}</div>
+            {% endif %}
+            {% endif %}
+
+            {% if row.embed_title or row.embed_description or row.embed_image_url or row.embed_fields or row.embed_footer or row.embed_icon_url or row.embed_icon_text %}
+            <div class="embed">
+                {% if row.embed_icon_url or row.embed_icon_text %}
+                <div class="embed-header">
+                    {% if row.embed_icon_url %}
+                    <img class="embed-icon" src="{{ row.embed_icon_url }}" alt="icon">
+                    {% endif %}
+                    {% if row.embed_icon_text %}
+                    <span class="embed-title">{{ row.embed_icon_text }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if row.embed_title %}
+                <div class="embed-title">{{ row.embed_title }}</div>
+                {% endif %}
+                {% if row.embed_thumbnail_url %}
+                <img class="embed-thumbnail" src="{{ row.embed_thumbnail_url }}" alt="thumbnail">
+                {% endif %}
+                {% if row.embed_description %}
+                <div class="embed-description" style="white-space: pre-wrap;">{{ row.embed_description | discord_format }}</div>
+                {% endif %}
+                {% if row.embed_fields %}
+                {% set fields = row.embed_fields.split('|') %}
+                {% for field in fields %}
+                {% set parts = field.split(':', 1) %}
+                {% if parts|length == 2 %}
+                <div class="embed-field">
+                    <div class="embed-field-title">{{ parts[0].strip() }}</div>
+                    <div class="embed-field-value">{{ parts[1].strip() | discord_format }}</div>
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+                {% if row.embed_image_url %}
+                <img class="embed-image" src="{{ row.embed_image_url }}" alt="embed-image">
+                {% endif %}
+                {% if row.embed_footer %}
+                <div class="embed-footer">{{ row.embed_footer }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
