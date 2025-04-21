@@ -3,7 +3,7 @@ from collections import Counter
 import discord
 import typing
 import io
-import colorama
+from utils import colorama_fix as colorama
 import sqlite3
 import utils
 import datetime
