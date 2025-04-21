@@ -1,9 +1,6 @@
 import base64
-import json
 import discord
-import aiohttp
 import utils
-import math
 import io
 import Commands.Fivem.helper as helper
 
