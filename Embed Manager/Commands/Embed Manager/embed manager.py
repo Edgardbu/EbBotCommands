@@ -5,7 +5,7 @@ from typing import Literal
 import discord
 import utils
 import requests
-from utils import colorama_fix as colorama
+import colorama
 
 
 def init(tree: discord.app_commands.CommandTree, bot: discord.Client, config: dict, lang: dict):
