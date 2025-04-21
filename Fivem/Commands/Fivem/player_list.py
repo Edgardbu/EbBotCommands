@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from utils import colorama_fix as colorama
+import colorama
 import discord
 import utils
 from discord.ext import tasks
